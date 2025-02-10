@@ -46,12 +46,6 @@ class MovingAverage(object):
 lastValues = {}
 logger = logging.getLogger()
 
-# 1 measurement/message every 5 sec -> 15min demand average
-demandAvg = MovingAverage(180)
-demandL1Avg = MovingAverage(180)
-demandL2Avg = MovingAverage(180)
-demandL3Avg = MovingAverage(180)
-
 def on_connect(client, userdata, flags, rc):
     logger.info(
         f"MQTT connected to {userdata['host']}:{userdata['port']} - topic: '{userdata['meterValuesTopic']}' with result code {rc}.")
@@ -66,16 +60,9 @@ def on_message(client, userdata, message):
 #   logger.debug("Dump variable %s " %  json.dumps( userdata, indent=4, sort_keys=True))
     decoded_message = str(message.payload.decode("utf-8"))
     lastValues = json.loads(decoded_message)
-#   print(lastValues['powerImportedActual'], type(lastValues['powerImportedActual']))
-#   print(float(lastValues['powerImportedActual']), type(float(lastValues['powerImportedActual'])))
-#   print(lastValues['powerExportedActual'], type(lastValues['powerExportedActual']))
-
-    # Calc net power average
-    lastValues ['demand_power_active'] = demandAvg.next ( (float(lastValues['powerImportedActual']) * 1000) - (float(lastValues['powerExportedActual']) * 1000) )
-    lastValues ['l1_demand_power_active'] = demandL1Avg.next( (float(lastValues['instantaneousActivePowerL1Plus']) * 1000) - (float(lastValues['instantaneousActivePowerL1Min']) * 1000) )
-    lastValues ['l2_demand_power_active'] = demandL2Avg.next( (float(lastValues['instantaneousActivePowerL2Plus']) * 1000) - (float(lastValues['instantaneousActivePowerL2Min']) * 1000) )
-    lastValues ['l3_demand_power_active'] = demandL3Avg.next( (float(lastValues['instantaneousActivePowerL3Plus']) * 1000) - (float(lastValues['instantaneousActivePowerL3Min']) * 1000) )
-    logger.debug(F'Received message in {message.topic}, avg demand: {lastValues ["demand_power_active"]}')
+   print(lastValues['powerImportedActual'], type(lastValues['powerImportedActual']))
+   print(float(lastValues['powerImportedActual']), type(float(lastValues['powerImportedActual'])))
+   print(lastValues['powerExportedActual'], type(lastValues['powerExportedActual']))
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
@@ -147,87 +134,16 @@ def values(device):
     submitValues ['l1_power_active']= (float(lastValues['instantaneousActivePowerL1Plus']) * 1000) - (float(lastValues['instantaneousActivePowerL1Min']) * 1000)
     submitValues ['l2_power_active']= (float(lastValues['instantaneousActivePowerL2Plus']) * 1000) - (float(lastValues['instantaneousActivePowerL2Min']) * 1000)
     submitValues ['l3_power_active']= (float(lastValues['instantaneousActivePowerL3Plus']) * 1000) - (float(lastValues['instantaneousActivePowerL3Min']) * 1000)
+    #calculate current as P1 provided current is rounded to integers   
+    submitValues['l1_current'] = abs ( submitValues ['l1_power_active'] ) / float(lastValues['instantaneousVoltageL1'])
+    submitValues['l2_current'] = abs ( submitValues ['l2_power_active'] ) / float(lastValues['instantaneousVoltageL2'])
+    submitValues['l3_current'] = abs ( submitValues ['l3_power_active'] ) / float(lastValues['instantaneousVoltageL3'])
 
-    P1Current=False
-    if (P1Current):
-        submitValues['l1_current'] = float(lastValues[ 'instantaneousCurrentL1'])
-        submitValues['l2_current'] = float(lastValues[ 'instantaneousCurrentL2'])
-        submitValues['l3_current'] = float(lastValues[ 'instantaneousCurrentL3'])
-    else:
-        #calculate current as P1 provided current is rounded to integers
-        submitValues['l1_current'] = abs ( submitValues ['l1_power_active'] ) / float(lastValues['instantaneousVoltageL1'])
-        submitValues['l2_current'] = abs ( submitValues ['l2_power_active'] ) / float(lastValues['instantaneousVoltageL2'])
-        submitValues['l3_current'] = abs ( submitValues ['l3_power_active'] ) / float(lastValues['instantaneousVoltageL3'])
-
-    submitValues ['demand_power_active'] = lastValues ['demand_power_active'] 
-    submitValues ['l1_demand_power_active'] = lastValues ['l1_demand_power_active']
-    submitValues ['l2_demand_power_active'] = lastValues ['l2_demand_power_active']
-    submitValues ['l3_demand_power_active'] = lastValues ['l3_demand_power_active']
-
-    submitEnergy=True
-    if (submitEnergy):
-        submitValues['import_energy_active'] = float(lastValues['electricityImportedT1']) + float(lastValues['electricityImportedT2'])
-        submitValues['export_energy_active'] = float(lastValues['electricityExportedT1']) + float(lastValues['electricityExportedT2'])
-        submitValues['energy_active'] =  submitValues['import_energy_active'] - submitValues['export_energy_active'] 
+    submitValues['import_energy_active'] = float(lastValues['electricityImportedT1']) + float(lastValues['electricityImportedT2'])
+    submitValues['export_energy_active'] = float(lastValues['electricityExportedT1']) + float(lastValues['electricityExportedT2'])
+    submitValues['energy_active'] =  submitValues['import_energy_active'] - submitValues['export_energy_active'] 
     submitValues["_input"] = lastValues
 
     logger.debug("Dump values %s " %  json.dumps( submitValues, indent=4, sort_keys=True))
 
     return submitValues
-
-    #  MQTT input is a json with one or more of the below elements
-    # "energy_active"
-    # "import_energy_active"
-    # "power_active"
-    # "l1_power_active"
-    # "l2_power_active"
-    # "l3_power_active"
-    # "voltage_ln"
-    # "l1n_voltage"
-    # "l2n_voltage"
-    # "l3n_voltage"
-    # "voltage_ll"
-    # "l12_voltage"
-    # "l23_voltage"
-    # "l31_voltage"
-    # "frequency"
-    # "l1_energy_active"
-    # "l2_energy_active"
-    # "l3_energy_active"
-    # "l1_import_energy_active"
-    # "l2_import_energy_active"
-    # "l3_import_energy_active"
-    # "export_energy_active"
-    # "l1_export_energy_active"
-    # "l2_export_energy_active"
-    # "l3_export_energy_active"
-    # "energy_reactive"
-    # "l1_energy_reactive"
-    # "l2_energy_reactive"
-    # "l3_energy_reactive"
-    # "energy_apparent"
-    # "l1_energy_apparent"
-    # "l2_energy_apparent"
-    # "l3_energy_apparent"
-    # "power_factor"
-    # "l1_power_factor"
-    # "l2_power_factor"
-    # "l3_power_factor"
-    # "power_reactive"
-    # "l1_power_reactive"
-    # "l2_power_reactive"
-    # "l3_power_reactive"
-    # "power_apparent"
-    # "l1_power_apparent"
-    # "l2_power_apparent"
-    # "l3_power_apparent"
-    # "l1_current"
-    # "l2_current"
-    # "l3_current"
-    # "demand_power_active"
-    # "minimum_demand_power_active"
-    # "maximum_demand_power_active"
-    # "demand_power_apparent"
-    # "l1_demand_power_active"
-    # "l2_demand_power_active"
-    # "l3_demand_power_active"
